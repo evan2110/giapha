@@ -1,0 +1,14 @@
+{
+  "name": "giapha",
+  "private": true,
+  "description": "Phả đồ — gia phả lưu trên máy chủ và xem trên web",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}

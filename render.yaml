@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: giapha
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: giapha-db
+          property: connectionString
+      - key: GIAPHA_KEY
+        sync: false
+      - key: NODE_VERSION
+        value: "22"
+
+databases:
+  - name: giapha-db
+    databaseName: giapha
+    plan: free
+    region: singapore
