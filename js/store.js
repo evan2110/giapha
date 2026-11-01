@@ -415,6 +415,55 @@ const Store = (() => {
     return existingId;
   }
 
+  function moveCluster(anchorId, memberIds, fatherId, motherId) {
+    const family = current();
+    const members = (memberIds || []).map((id) => family.people.find((person) => person.id === id)).filter(Boolean);
+    const anchor = members.find((person) => person.id === anchorId) || family.people.find((person) => person.id === anchorId);
+    if (!anchor || anchor.external) return { ok: false, error: "Không chuyển được cụm này" };
+    fatherId = fatherId || null;
+    motherId = motherId || null;
+    if (fatherId && fatherId === motherId) return { ok: false, error: "Cha và mẹ phải là hai người khác nhau" };
+    const groupIds = members.length ? members.map((person) => person.id) : [anchor.id];
+    const blocked = new Set(groupIds);
+    const stack = groupIds.slice();
+    const seen = new Set();
+    while (stack.length) {
+      const id = stack.pop();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      blocked.add(id);
+      for (const person of family.people) {
+        if (person.fatherId === id || person.motherId === id) {
+          stack.push(person.id);
+          (person.spouseIds || []).forEach((spouseId) => stack.push(spouseId));
+        }
+      }
+    }
+    if ((fatherId && blocked.has(fatherId)) || (motherId && blocked.has(motherId))) {
+      return { ok: false, error: "Không thể chuyển cụm vào chính nó hoặc vào con cháu" };
+    }
+    const father = fatherId ? family.people.find((person) => person.id === fatherId) : null;
+    const mother = motherId ? family.people.find((person) => person.id === motherId) : null;
+    if (fatherId && (!father || father.external)) return { ok: false, error: "Không tìm thấy nhánh cha" };
+    if (motherId && (!mother || mother.external)) return { ok: false, error: "Không tìm thấy nhánh mẹ" };
+    const samePlace = (anchor.fatherId || null) === fatherId && (anchor.motherId || null) === motherId;
+    const othersClear = members.every((person) => person.id === anchor.id || (!person.fatherId && !person.motherId));
+    if (samePlace && othersClear) return { ok: false, error: "Cụm này đang ở đúng nhánh đó" };
+    anchor.fatherId = fatherId;
+    anchor.motherId = motherId;
+    for (const person of members) {
+      if (person.id === anchor.id) continue;
+      person.fatherId = null;
+      person.motherId = null;
+    }
+    if (fatherId || motherId) {
+      const siblings = family.people.filter((person) => person.id !== anchor.id && ((fatherId && person.fatherId === fatherId) || (motherId && person.motherId === motherId)));
+      anchor.order = siblings.reduce((max, person) => Math.max(max, person.order || 0), 0) + 1;
+    }
+    emit();
+    return { ok: true, id: anchor.id };
+  }
+
   function linkExternal(personId, spec) {
     const family = current();
     const person = family.people.find((item) => item.id === personId);
@@ -458,6 +507,7 @@ const Store = (() => {
     addChild,
     addSpouse,
     addAncestors,
+    moveCluster,
     linkExternal,
     reset,
   };

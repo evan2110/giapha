@@ -9,6 +9,7 @@ const ICON = {
   spouse: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><circle cx="16" cy="9" r="2.4"></circle><path d="M3 19a5 5 0 0 1 10 0"></path><path d="M14 19a4 4 0 0 1 7 0"></path></svg>',
   child: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="8" r="3"></circle><path d="M4 19a6 6 0 0 1 12 0"></path><path d="M19 8v6M16 11h6"></path></svg>',
   trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V5h6v2"></path><path d="M8 7l1 13h6l1-13"></path></svg>',
+  move: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 8h12"></path><path d="M13 4l5 4-5 4"></path><path d="M20 16H8"></path><path d="M11 12l-5 4 5 4"></path></svg>',
 };
 
 const SILHOUETTE = {
@@ -363,6 +364,7 @@ function renderPanel(family, layout) {
     '<button type="button" class="panel-btn" data-action="edit" data-id="' + esc(person.id) + '">' + ICON.pencil + "Xem / sửa thông tin</button>" +
     '<button type="button" class="panel-btn" data-action="add-spouse" data-id="' + esc(person.id) + '">' + ICON.spouse + "Thêm vợ/chồng</button>" +
     '<button type="button" class="panel-btn" data-action="add-child" data-id="' + esc(person.id) + '">' + ICON.child + "Thêm con</button>" +
+    (person.external ? "" : '<button type="button" class="panel-btn" data-action="move-cluster" data-id="' + esc(person.id) + '">' + ICON.move + "Chuyển cụm sang nhánh khác</button>") +
     '<button type="button" class="panel-btn danger" data-action="delete" data-id="' + esc(person.id) + '">' + ICON.trash + "Xoá khỏi gia phả</button>" +
     "</div>";
 }
@@ -705,6 +707,67 @@ function openAddSpouse(id) {
       if (!result.ok) { toast(result.error); return false; }
       selectPerson(result.id, { pan: true });
       toast("Đã thêm vợ/chồng");
+      return true;
+    },
+  });
+}
+
+function coupleSlots(people) {
+  let fatherId = null;
+  let motherId = null;
+  people.forEach((person) => {
+    if (person.gender === "female") motherId = motherId || person.id;
+    else fatherId = fatherId || person.id;
+  });
+  return { fatherId, motherId };
+}
+
+function openMoveCluster(id) {
+  if (guardEdit()) return;
+  const family = Store.current();
+  const layout = lastLayout || layoutFamily(family);
+  const units = layout.allUnits || [];
+  const unit = units.find((item) => item.people.some((person) => person.id === id));
+  if (!unit) return;
+  const blocked = new Set();
+  const stack = [unit.id];
+  while (stack.length) {
+    const unitId = stack.pop();
+    if (blocked.has(unitId)) continue;
+    blocked.add(unitId);
+    (layout.childMap.get(unitId) || []).forEach((kid) => stack.push(kid.id));
+  }
+  const names = unit.people.map((person) => person.name).join(" và ");
+  let descendants = 0;
+  blocked.forEach((unitId) => {
+    if (unitId === unit.id) return;
+    const found = units.find((item) => item.id === unitId);
+    if (found) descendants += found.people.length;
+  });
+  const anchor = family.people.find((person) => person.id === unit.anchorId) || unit.people[0];
+  const father = family.people.find((person) => person.id === anchor.fatherId);
+  const mother = family.people.find((person) => person.id === anchor.motherId);
+  const currentLabel = [father, mother].filter(Boolean).map((person) => person.name).join(" và ") || "đầu phả đồ";
+  const choices = units.filter((item) => !blocked.has(item.id)).map((item) => {
+    const slots = coupleSlots(item.people);
+    const label = item.people.map((person) => person.name).join(" và ");
+    const gen = item.generation || layout.genOf.get(item.people[0].id) || 99;
+    return { value: (slots.fatherId || "") + "|" + (slots.motherId || ""), label: "Đời " + gen + " — " + label, gen, name: label };
+  }).sort((a, b) => a.gen - b.gen || a.name.localeCompare(b.name, "vi"));
+  const options = '<option value="|">Đưa lên đầu phả đồ, không gắn cha mẹ</option>' +
+    choices.map((choice) => '<option value="' + esc(choice.value) + '">' + esc(choice.label) + "</option>").join("");
+  const descendantText = descendants ? " Cả " + descendants + " người con cháu bên dưới đi cùng." : "";
+  openModal({
+    title: "Chuyển cụm sang nhánh khác",
+    submitLabel: "Chuyển cụm",
+    html: '<p class="help">Cụm <b>' + esc(names) + "</b> đang nằm dưới <b>" + esc(currentLabel) + "</b>." + descendantText + " Chọn cha mẹ mới. Tên, năm sinh, vợ chồng và con được giữ nguyên.</p>" +
+      '<label>Chuyển xuống dưới<select name="dest">' + options + "</select></label>",
+    onSubmit(form) {
+      const [fatherId, motherId] = String(form.get("dest") || "|").split("|");
+      const result = Store.moveCluster(unit.anchorId, unit.people.map((person) => person.id), fatherId, motherId);
+      if (!result.ok) { toast(result.error); return false; }
+      selectPerson(result.id, { pan: true });
+      toast("Đã chuyển cụm");
       return true;
     },
   });
@@ -1192,6 +1255,7 @@ document.body.addEventListener("click", (event) => {
     else if (action === "edit") openEdit(id);
     else if (action === "add-spouse") openAddSpouse(id);
     else if (action === "add-child") openAddChild(id);
+    else if (action === "move-cluster") openMoveCluster(id);
     else if (action === "delete") openDelete(id);
     else if (action === "select") selectPerson(id, { pan: true });
     else if (action === "close-panel") {

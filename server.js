@@ -129,7 +129,8 @@ function serveFile(res, relative) {
       return;
     }
     const headers = { "Content-Type": types[path.extname(file)] || "application/octet-stream" };
-    if (path.extname(file) === ".html") headers["Cache-Control"] = "no-cache";
+    const ext = path.extname(file);
+    if (ext === ".html" || ext === ".js" || ext === ".css") headers["Cache-Control"] = "no-cache";
     res.writeHead(200, headers);
     res.end(data);
   });
