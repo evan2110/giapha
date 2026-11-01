@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const http = require("http");
+const https = require("https");
 const path = require("path");
 const { Pool } = require("pg");
 
@@ -75,6 +76,7 @@ function validState(value) {
   return value.families.every((family) => {
     if (!family || typeof family.id !== "string" || family.id.length >= 80 || typeof family.name !== "string" || !Array.isArray(family.people) || family.people.length > 5000) return false;
     if (family.intro != null && (typeof family.intro !== "string" || family.intro.length > 200000)) return false;
+    if (family.shrineMap != null && family.shrineMap !== "" && !safeMapEmbed(family.shrineMap)) return false;
     if (family.photos == null) return true;
     if (!Array.isArray(family.photos) || family.photos.length > 24) return false;
     return family.photos.every((photo) => photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000);
@@ -85,6 +87,55 @@ function publicState(state) {
   const families = (state.families || []).filter((family) => family.isPublic);
   const currentId = families.some((family) => family.id === state.currentId) ? state.currentId : (families[0] ? families[0].id : null);
   return { version: state.version || 1, currentId, families };
+}
+
+function safeMapEmbed(value) {
+  if (typeof value !== "string" || value.length > 2500 || !value.startsWith("https://")) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const google = host === "maps.google.com" || host === "www.google.com" || host.endsWith(".google.com");
+    if (!google) return false;
+    if (url.pathname === "/maps/embed") return true;
+    return url.pathname === "/maps" && url.searchParams.get("output") === "embed";
+  } catch {
+    return false;
+  }
+}
+
+function googleHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "google.com" || host === "www.google.com" || host === "maps.google.com" || host === "goo.gl" || host === "maps.app.goo.gl" || host.endsWith(".google.com") || host.endsWith(".google.com.vn");
+}
+
+function resolveGoogleUrl(raw) {
+  const start = new URL(raw);
+  if (start.protocol !== "https:" && start.protocol !== "http:") return Promise.reject(new Error("bad protocol"));
+  if (!googleHost(start.hostname)) return Promise.reject(new Error("not google"));
+  return new Promise((resolve, reject) => {
+    let hops = 0;
+    const hop = (current) => {
+      const lib = current.protocol === "https:" ? https : http;
+      const request = lib.request(current, { method: "GET", headers: { "User-Agent": "giapha" } }, (response) => {
+        const location = response.headers.location;
+        if (response.statusCode >= 300 && response.statusCode < 400 && location && hops < 5) {
+          hops += 1;
+          response.resume();
+          let next;
+          try { next = new URL(location, current); } catch { reject(new Error("bad redirect")); return; }
+          if (!googleHost(next.hostname)) { reject(new Error("bad redirect")); return; }
+          hop(next);
+          return;
+        }
+        response.resume();
+        resolve(current.toString());
+      });
+      request.setTimeout(8000, () => { request.destroy(); reject(new Error("timeout")); });
+      request.on("error", reject);
+      request.end();
+    };
+    hop(start);
+  });
 }
 
 function sendJson(res, status, body) {
@@ -147,6 +198,13 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/api/health" && req.method === "GET") {
       sendJson(res, 200, { ok: true, store: pool ? "postgres" : "file" });
+      return;
+    }
+    if (url.pathname === "/api/map-resolve" && req.method === "POST") {
+      if (!canEdit(req)) { sendJson(res, 401, { error: "Cần mật khẩu" }); return; }
+      const body = JSON.parse(await readBody(req) || "{}");
+      const resolved = await resolveGoogleUrl(body.url || "");
+      sendJson(res, 200, { url: resolved });
       return;
     }
     if (url.pathname === "/api/login" && req.method === "POST") {

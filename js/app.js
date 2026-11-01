@@ -484,6 +484,50 @@ function panTo(id) {
   setTimeout(() => card.classList.remove("pulse"), 800);
 }
 
+function googleMapEmbed(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const iframe = text.match(/src\s*=\s*["']([^"']+)["']/i);
+  const candidate = iframe ? iframe[1] : text;
+  let url;
+  try { url = new URL(candidate); } catch { return ""; }
+  const host = url.hostname.toLowerCase();
+  const google = host === "maps.google.com" || host === "www.google.com" || host.endsWith(".google.com") || host === "maps.app.goo.gl" || host === "goo.gl";
+  if (!google || (url.protocol !== "https:" && url.protocol !== "http:")) return "";
+  if (url.pathname === "/maps/embed" || url.pathname.endsWith("/maps/embed")) return url.toString();
+  const at = url.href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?)z)?/);
+  if (at) {
+    const zoom = at[3] ? Math.min(21, Math.max(3, Math.round(Number(at[3])))) : 16;
+    return "https://maps.google.com/maps?q=" + encodeURIComponent(at[1] + "," + at[2]) + "&z=" + zoom + "&output=embed";
+  }
+  const query = url.searchParams.get("q") || url.searchParams.get("query");
+  if (query && host !== "maps.app.goo.gl" && host !== "goo.gl") {
+    return "https://maps.google.com/maps?q=" + encodeURIComponent(query) + "&z=16&output=embed";
+  }
+  const place = decodeURIComponent((url.pathname.match(/\/place\/([^/]+)/) || [])[1] || "").replace(/\+/g, " ");
+  if (place) return "https://maps.google.com/maps?q=" + encodeURIComponent(place) + "&z=16&output=embed";
+  if (host === "maps.app.goo.gl" || host === "goo.gl" || url.pathname.startsWith("/maps")) return "short";
+  return "";
+}
+
+function renderShrine(family) {
+  const src = family.shrineMap || "";
+  const frame = document.getElementById("shrineFrame");
+  const empty = document.getElementById("shrineEmpty");
+  const clear = document.getElementById("shrineClear");
+  if (src && frame.dataset.src !== src) {
+    frame.dataset.src = src;
+    frame.src = src;
+  }
+  if (!src) {
+    frame.removeAttribute("src");
+    frame.dataset.src = "";
+  }
+  frame.hidden = !src;
+  empty.hidden = !!src;
+  clear.hidden = !src;
+}
+
 function applyTab() {
   const tab = ui.tab === "intro" || ui.tab === "photos" ? ui.tab : "tree";
   ui.tab = tab;
@@ -633,6 +677,7 @@ function render(opts) {
     applyTab();
     renderIntro(family);
     renderPhotos(family);
+    renderShrine(family);
     if (fit) fitToView(layout);
     else applyTransform();
   } catch (error) {
@@ -1592,6 +1637,45 @@ introDoc.addEventListener("input", () => {
 });
 introDoc.addEventListener("blur", () => flushIntro(true));
 window.addEventListener("pagehide", () => flushIntro(false));
+
+document.getElementById("shrineForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (guardEdit()) return;
+  const form = event.currentTarget;
+  const raw = form.map.value;
+  const finish = (embed) => {
+    if (!embed || embed === "short") {
+      toast("Hãy dán đường liên kết chia sẻ, hoặc mã nhúng: Chia sẻ → Nhúng bản đồ → Sao chép HTML.");
+      return;
+    }
+    Store.setShrineMap(embed);
+    form.reset();
+    toast("Đã lưu bản đồ nhà thờ họ");
+    document.getElementById("shrine").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  let embed = googleMapEmbed(raw);
+  if (embed !== "short") { finish(embed); return; }
+  const found = String(raw).match(/https?:\/\/[^\s"'<>]+/i);
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const key = localStorage.getItem("giapha.access") || "";
+    if (key) headers.Authorization = "Bearer " + key;
+  } catch { /* bỏ qua */ }
+  fetch("/api/map-resolve", { method: "POST", headers, body: JSON.stringify({ url: found ? found[0] : raw.trim() }) })
+    .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+    .then((result) => {
+      if (!result.ok) { toast(result.data.error || "Không mở được link Google Maps"); return; }
+      finish(googleMapEmbed(result.data.url));
+    })
+    .catch(() => toast("Không mở được link Google Maps"));
+});
+
+document.getElementById("shrineClear").addEventListener("click", () => {
+  if (guardEdit()) return;
+  document.getElementById("shrineForm").reset();
+  Store.setShrineMap("");
+  toast("Đã xoá bản đồ nhà thờ họ");
+});
 
 document.getElementById("photoForm").addEventListener("submit", (event) => {
   event.preventDefault();

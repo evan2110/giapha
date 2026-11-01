@@ -124,6 +124,11 @@ function photoOk(photo) {
       if (photos.length !== family.photos.length) extrasChanged = true;
       family.photos = photos;
     }
+    if (typeof family.shrineMap !== "string") family.shrineMap = "";
+    else if (family.shrineMap && !/^https:\/\/(maps\.google\.com\/maps\?|www\.google\.com\/maps\/embed\?)/.test(family.shrineMap)) {
+      family.shrineMap = "";
+      extrasChanged = true;
+    }
     family.people = (family.people || []).map((person) => blankPerson(person));
     const ids = new Set(family.people.map((person) => person.id));
     for (const person of family.people) {
@@ -505,6 +510,12 @@ function photoOk(photo) {
     return { ok: true, id: anchor.id };
   }
 
+  function setShrineMap(src) {
+    current().shrineMap = src || "";
+    emit();
+    return { ok: true };
+  }
+
   function updateIntro(html) {
     const family = current();
     family.intro = String(html || "").slice(0, 200000);
@@ -587,6 +598,7 @@ function photoOk(photo) {
     addAncestors,
     moveCluster,
     updateIntro,
+    setShrineMap,
     addPhoto,
     updatePhoto,
     deletePhoto,
