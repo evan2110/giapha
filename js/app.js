@@ -543,7 +543,7 @@ function applyTab() {
   });
   const hints = {
     intro: "Phần giới thiệu của gia phả. Có mật khẩu thì bấm vào bài để sửa.",
-    photos: "Ảnh dòng họ. Mỗi ảnh có một tiêu đề, ví dụ: Gia đình ông bà.",
+    photos: "Ảnh dòng họ.",
     shrine: "Bản đồ nhà thờ họ. Có mật khẩu thì dán link Google Maps để thêm hoặc xoá.",
     tree: "Bấm vào một người để xem, sửa, thêm con, thêm vợ/chồng. Kéo để di chuyển, cuộn để phóng to / thu nhỏ.",
   };
@@ -1685,6 +1685,11 @@ document.getElementById("shrineClear").addEventListener("click", () => {
   toast("Đã xoá bản đồ nhà thờ họ");
 });
 
+document.querySelector("#photoForm [name=file]").addEventListener("change", (event) => {
+  const file = event.target.files && event.target.files[0];
+  document.getElementById("photoPickLabel").textContent = file ? file.name : "Chọn ảnh";
+});
+
 document.getElementById("photoForm").addEventListener("submit", (event) => {
   event.preventDefault();
   if (guardEdit()) return;
@@ -1695,6 +1700,7 @@ document.getElementById("photoForm").addEventListener("submit", (event) => {
     const result = Store.addPhoto(form.title.value, src);
     if (!result.ok) { toast(result.error); return; }
     form.reset();
+    document.getElementById("photoPickLabel").textContent = "Chọn ảnh";
     toast("Đã thêm ảnh");
   }).catch((error) => toast(error.message || "Không đọc được ảnh"));
 });
