@@ -20,6 +20,7 @@ const SILHOUETTE = {
 const ui = {
   selectedId: null,
   panelOpen: false,
+  picked: false,
   linkMode: false,
   readOnly: false,
   query: "",
@@ -79,18 +80,13 @@ function genderLabel(gender) {
   return gender === "female" ? "Nữ" : "Nam";
 }
 
-function defaultSelection(family) {
-  if (family.people.some((person) => person.id === "do-thao")) return "do-thao";
-  const first = family.people.find((person) => !person.external);
-  return first ? first.id : null;
-}
-
 function persistUi() {
   try {
     sessionStorage.setItem("giapha-ui", JSON.stringify({
       familyId: Store.current().id,
       selectedId: ui.selectedId,
       panelOpen: ui.panelOpen,
+      picked: ui.picked,
       tab: ui.tab,
     }));
   } catch { /* bỏ qua */ }
@@ -104,13 +100,16 @@ function bootSelection() {
   }
   const family = Store.current();
   if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos" || saved.tab === "shrine")) ui.tab = saved.tab;
-  if (saved && saved.familyId === family.id && family.people.some((person) => person.id === saved.selectedId)) {
+  const chosen = saved && saved.picked && saved.familyId === family.id && family.people.some((person) => person.id === saved.selectedId);
+  if (chosen) {
     ui.selectedId = saved.selectedId;
     ui.panelOpen = saved.panelOpen !== false;
+    ui.picked = true;
     return;
   }
-  ui.selectedId = defaultSelection(family);
-  ui.panelOpen = !!ui.selectedId;
+  ui.selectedId = null;
+  ui.panelOpen = false;
+  ui.picked = false;
 }
 
 function layoutFamily(family) {
@@ -723,6 +722,7 @@ function selectPerson(id, opts) {
     ui.linkMode = false;
     ui.selectedId = id;
     ui.panelOpen = true;
+    ui.picked = true;
     persistUi();
     render();
     openLinkParents(id);
@@ -733,6 +733,7 @@ function selectPerson(id, opts) {
   const next = (family.collapsed || []).filter((key) => !keys.includes(key));
   ui.selectedId = id;
   ui.panelOpen = true;
+  ui.picked = true;
   persistUi();
   if (next.length !== (family.collapsed || []).length) {
     family.collapsed = next;
@@ -977,6 +978,7 @@ function openDelete(id) {
       if (ui.selectedId === id) {
         ui.selectedId = null;
         ui.panelOpen = false;
+        ui.picked = false;
         persistUi();
       }
       Store.deletePerson(id);
@@ -1152,9 +1154,9 @@ function openMembers() {
             onSubmit() {
               const result = Store.deleteFamily(familyId);
               if (!result.ok) { toast(result.error); return false; }
-              const next = Store.current();
-              ui.selectedId = defaultSelection(next);
-              ui.panelOpen = !!ui.selectedId;
+              ui.selectedId = null;
+              ui.panelOpen = false;
+              ui.picked = false;
               ui.readOnly = false;
               document.body.classList.remove("is-readonly");
               fitNext = true;
@@ -1192,9 +1194,9 @@ function switchFamily(id) {
   ui.linkMode = false;
   document.body.classList.remove("is-readonly");
   Store.state().currentId = id;
-  const family = Store.current();
-  ui.selectedId = defaultSelection(family);
-  ui.panelOpen = !!ui.selectedId;
+  ui.selectedId = null;
+  ui.panelOpen = false;
+  ui.picked = false;
   ui.query = "";
   searchInput.value = "";
   searchResults.hidden = true;
@@ -1277,8 +1279,9 @@ function restoreDemo() {
   searchInput.value = "";
   document.body.classList.remove("is-readonly");
   Store.reset();
-  ui.selectedId = "do-thao";
-  ui.panelOpen = true;
+  ui.selectedId = null;
+  ui.panelOpen = false;
+  ui.picked = false;
   ui.userAdjusted = false;
   fitNext = true;
   persistUi();
@@ -1452,6 +1455,7 @@ document.body.addEventListener("click", (event) => {
     else if (action === "close-panel") {
       ui.panelOpen = false;
       ui.selectedId = null;
+      ui.picked = false;
       persistUi();
       render();
     }
@@ -1498,6 +1502,7 @@ canvas.addEventListener("pointerup", () => {
   else if (ui.panelOpen || ui.selectedId) {
     ui.panelOpen = false;
     ui.selectedId = null;
+    ui.picked = false;
     persistUi();
     render();
   }
@@ -1581,6 +1586,7 @@ document.addEventListener("keydown", (event) => {
   if (ui.panelOpen) {
     ui.panelOpen = false;
     ui.selectedId = null;
+    ui.picked = false;
     persistUi();
     render();
   }
@@ -1625,7 +1631,7 @@ async function start() {
 document.querySelector(".tabs").addEventListener("click", (event) => {
   const button = event.target.closest("[data-tab]");
   if (!button) return;
-  if (button.dataset.tab === "tree" && ui.tab !== "tree") fitNext = true;
+  if (button.dataset.tab === "tree" && ui.tab !== "tree" && !ui.userAdjusted) fitNext = true;
   ui.tab = button.dataset.tab;
   persistUi();
   render();
