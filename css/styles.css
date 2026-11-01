@@ -544,6 +544,7 @@ body.is-readonly .edit-only { display: none !important; }
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 22px 10px;
 }
@@ -559,7 +560,8 @@ body.is-readonly .edit-only { display: none !important; }
 .tabs button.is-active { background: var(--green); border-color: var(--green); color: #fff; }
 body[data-tab="intro"] .actions,
 body[data-tab="photos"] .actions,
-body[data-tab="shrine"] .actions { display: none; }
+body[data-tab="shrine"] .actions,
+body[data-tab="tombs"] .actions { display: none; }
 
 .credit {
   margin-top: auto;
@@ -613,7 +615,7 @@ body[data-tab="shrine"] .actions { display: none; }
   font-style: italic;
 }
 .intro-doc ul { margin: 0 0 14px; padding-left: 22px; }
-#viewPhotos.sheet { flex: 0 1 auto; }
+#viewPhotos.sheet, #viewTombs.sheet { flex: 0 1 auto; }
 .photo-form {
   display: flex;
   flex-wrap: wrap;

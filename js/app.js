@@ -99,7 +99,7 @@ function bootSelection() {
     Store.state().currentId = saved.familyId;
   }
   const family = Store.current();
-  if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos" || saved.tab === "shrine")) ui.tab = saved.tab;
+  if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos" || saved.tab === "shrine" || saved.tab === "tombs")) ui.tab = saved.tab;
   const chosen = saved && saved.picked && saved.familyId === family.id && family.people.some((person) => person.id === saved.selectedId);
   if (chosen) {
     ui.selectedId = saved.selectedId;
@@ -528,13 +528,14 @@ function renderShrine(family) {
 }
 
 function applyTab() {
-  const known = ui.tab === "intro" || ui.tab === "photos" || ui.tab === "shrine";
+  const known = ui.tab === "intro" || ui.tab === "photos" || ui.tab === "shrine" || ui.tab === "tombs";
   const tab = known ? ui.tab : "tree";
   ui.tab = tab;
   document.body.dataset.tab = tab;
   document.getElementById("viewIntro").hidden = tab !== "intro";
   document.getElementById("viewPhotos").hidden = tab !== "photos";
   document.getElementById("viewShrine").hidden = tab !== "shrine";
+  document.getElementById("viewTombs").hidden = tab !== "tombs";
   document.querySelector("main.stage").hidden = tab !== "tree";
   document.querySelectorAll(".tabs [data-tab]").forEach((button) => {
     const on = button.dataset.tab === tab;
@@ -545,6 +546,7 @@ function applyTab() {
     intro: "Phần giới thiệu của gia phả. Có mật khẩu thì bấm vào bài để sửa.",
     photos: "Ảnh dòng họ.",
     shrine: "Bản đồ nhà thờ họ. Có mật khẩu thì dán link Google Maps để thêm hoặc xoá.",
+    tombs: "Khu lăng mộ.",
     tree: "Bấm vào một người để xem, sửa, thêm con, thêm vợ/chồng. Kéo để di chuyển, cuộn để phóng to / thu nhỏ.",
   };
   document.querySelector(".hint").textContent = hints[tab];
@@ -611,10 +613,10 @@ function flushIntro(announce) {
   if (announce && changed) toast("Đã lưu phần giới thiệu");
 }
 
-function renderPhotos(family) {
-  const photos = family.photos || [];
-  const grid = document.getElementById("photoGrid");
-  document.getElementById("photoEmpty").hidden = photos.length > 0;
+function renderAlbum(family, key, gridId, emptyId) {
+  const photos = family[key] || [];
+  const grid = document.getElementById(gridId);
+  document.getElementById(emptyId).hidden = photos.length > 0;
   const sig = photos.map((photo) => photo.id + ":" + photo.title).join("|") + (Store.writable() && !ui.readOnly ? ":edit" : ":view");
   if (grid.dataset.sig === sig) return;
   grid.dataset.sig = sig;
@@ -627,6 +629,11 @@ function renderPhotos(family) {
       : '<p class="photo-caption">' + esc(photo.title) + "</p>") +
     "</article>"
   ).join("");
+}
+
+function renderPhotos(family) {
+  renderAlbum(family, "photos", "photoGrid", "photoEmpty");
+  renderAlbum(family, "tombs", "tombGrid", "tombEmpty");
 }
 
 function compressImage(file) {
@@ -659,7 +666,8 @@ function compressImage(file) {
 }
 
 function openPhoto(id) {
-  const photo = (Store.current().photos || []).find((item) => item.id === id);
+  const family = Store.current();
+  const photo = [...(family.photos || []), ...(family.tombs || [])].find((item) => item.id === id);
   if (!photo) return;
   document.getElementById("photoViewImg").src = photo.src;
   document.getElementById("photoViewTitle").textContent = photo.title;
@@ -1685,44 +1693,46 @@ document.getElementById("shrineClear").addEventListener("click", () => {
   toast("Đã xoá bản đồ nhà thờ họ");
 });
 
-document.querySelector("#photoForm [name=file]").addEventListener("change", (event) => {
-  const file = event.target.files && event.target.files[0];
-  document.getElementById("photoPickLabel").textContent = file ? file.name : "Chọn ảnh";
-});
-
-document.getElementById("photoForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (guardEdit()) return;
-  const form = event.currentTarget;
-  const file = form.file.files && form.file.files[0];
-  if (!file) return;
-  compressImage(file).then((src) => {
-    const result = Store.addPhoto(form.title.value, src);
-    if (!result.ok) { toast(result.error); return; }
-    form.reset();
-    document.getElementById("photoPickLabel").textContent = "Chọn ảnh";
-    toast("Đã thêm ảnh");
-  }).catch((error) => toast(error.message || "Không đọc được ảnh"));
-});
-
-document.getElementById("photoGrid").addEventListener("click", (event) => {
-  const open = event.target.closest("[data-photo]");
-  const remove = event.target.closest("[data-photo-delete]");
-  if (remove) {
+function bindAlbum(formId, labelId, gridId, add, update, remove) {
+  document.querySelector("#" + formId + " [name=file]").addEventListener("change", (event) => {
+    const file = event.target.files && event.target.files[0];
+    document.getElementById(labelId).textContent = file ? file.name : "Chọn ảnh";
+  });
+  document.getElementById(formId).addEventListener("submit", (event) => {
+    event.preventDefault();
     if (guardEdit()) return;
-    Store.deletePhoto(remove.dataset.photoDelete);
-    toast("Đã xoá ảnh");
-    return;
-  }
-  if (open) openPhoto(open.dataset.photo);
-});
+    const form = event.currentTarget;
+    const file = form.file.files && form.file.files[0];
+    if (!file) return;
+    compressImage(file).then((src) => {
+      const result = add(form.title.value, src);
+      if (!result.ok) { toast(result.error); return; }
+      form.reset();
+      document.getElementById(labelId).textContent = "Chọn ảnh";
+      toast("Đã thêm ảnh");
+    }).catch((error) => toast(error.message || "Không đọc được ảnh"));
+  });
+  document.getElementById(gridId).addEventListener("click", (event) => {
+    const open = event.target.closest("[data-photo]");
+    const removeButton = event.target.closest("[data-photo-delete]");
+    if (removeButton) {
+      if (guardEdit()) return;
+      remove(removeButton.dataset.photoDelete);
+      toast("Đã xoá ảnh");
+      return;
+    }
+    if (open) openPhoto(open.dataset.photo);
+  });
+  document.getElementById(gridId).addEventListener("change", (event) => {
+    const input = event.target.closest("[data-photo-title]");
+    if (!input || guardEdit()) return;
+    const result = update(input.dataset.photoTitle, input.value);
+    if (!result.ok) toast(result.error);
+  });
+}
 
-document.getElementById("photoGrid").addEventListener("change", (event) => {
-  const input = event.target.closest("[data-photo-title]");
-  if (!input || guardEdit()) return;
-  const result = Store.updatePhoto(input.dataset.photoTitle, input.value);
-  if (!result.ok) toast(result.error);
-});
+bindAlbum("photoForm", "photoPickLabel", "photoGrid", Store.addPhoto, Store.updatePhoto, Store.deletePhoto);
+bindAlbum("tombForm", "tombPickLabel", "tombGrid", Store.addTomb, Store.updateTomb, Store.deleteTomb);
 
 document.getElementById("photoViewClose").addEventListener("click", () => {
   document.getElementById("photoView").hidden = true;

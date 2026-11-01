@@ -49,6 +49,7 @@
     <button type="button" data-tab="tree">Sơ đồ</button>
     <button type="button" data-tab="photos">Ảnh dòng họ</button>
     <button type="button" data-tab="shrine">Nhà thờ họ</button>
+    <button type="button" data-tab="tombs">Khu lăng mộ</button>
   </nav>
 
   <div class="actions">
@@ -145,6 +146,18 @@
     </form>
     <p id="photoEmpty" class="photo-empty" hidden>Chưa có ảnh.</p>
     <div id="photoGrid" class="photo-grid"></div>
+  </section>
+  <section id="viewTombs" class="sheet" hidden>
+    <form id="tombForm" class="photo-form edit-only">
+      <input name="title" type="text" maxlength="120" placeholder="Tiêu đề, ví dụ: Lăng mộ tổ" required>
+      <label class="btn photo-pick">
+        <span id="tombPickLabel">Chọn ảnh</span>
+        <input name="file" type="file" accept="image/*" required>
+      </label>
+      <button type="submit" class="btn">Thêm ảnh</button>
+    </form>
+    <p id="tombEmpty" class="photo-empty" hidden>Chưa có ảnh.</p>
+    <div id="tombGrid" class="photo-grid"></div>
   </section>
   <div id="photoView" class="photo-view" hidden>
     <button type="button" class="photo-view-x" id="photoViewClose" aria-label="Đóng">×</button>

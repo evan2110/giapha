@@ -98,6 +98,17 @@ const Store = (() => {
   return next;
 }
 
+function repairAlbum(family, key) {
+    if (!Array.isArray(family[key])) {
+      family[key] = [];
+      extrasChanged = true;
+      return;
+    }
+    const photos = family[key].filter(photoOk).slice(0, 24);
+    if (photos.length !== family[key].length) extrasChanged = true;
+    family[key] = photos;
+  }
+
 function photoOk(photo) {
     return photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000;
   }
@@ -116,14 +127,8 @@ function photoOk(photo) {
       extrasChanged = true;
     }
     if (family.intro.length > 200000) family.intro = family.intro.slice(0, 200000);
-    if (!Array.isArray(family.photos)) {
-      family.photos = [];
-      extrasChanged = true;
-    } else {
-      const photos = family.photos.filter(photoOk).slice(0, 24);
-      if (photos.length !== family.photos.length) extrasChanged = true;
-      family.photos = photos;
-    }
+    repairAlbum(family, "photos");
+    repairAlbum(family, "tombs");
     if (typeof family.shrineMap !== "string") family.shrineMap = "";
     else if (family.shrineMap && !/^https:\/\/(maps\.google\.com\/maps\?|www\.google\.com\/maps\/embed\?)/.test(family.shrineMap)) {
       family.shrineMap = "";
@@ -296,6 +301,7 @@ function photoOk(photo) {
       people: [],
       intro: "",
       photos: [],
+      tombs: [],
     };
   }
 
@@ -310,7 +316,7 @@ function photoOk(photo) {
   }
 
   function addFamily(name) {
-    const family = { id: uid("f"), name: name.trim(), isPublic: false, collapsed: [], people: [], intro: "", photos: [] };
+    const family = { id: uid("f"), name: name.trim(), isPublic: false, collapsed: [], people: [], intro: "", photos: [], tombs: [] };
     state.families.push(family);
     state.currentId = family.id;
     emit();
@@ -522,22 +528,22 @@ function photoOk(photo) {
     save();
   }
 
-  function addPhoto(title, src) {
+  function addAlbumPhoto(key, title, src, limitMessage) {
     const family = current();
     const trimmed = String(title || "").trim();
     if (!trimmed) return { ok: false, error: "Nhập tiêu đề cho ảnh" };
     if (trimmed.length > 120) return { ok: false, error: "Tiêu đề tối đa 120 ký tự" };
-    if (!family.photos) family.photos = [];
-    if (family.photos.length >= 24) return { ok: false, error: "Mỗi gia phả giữ tối đa 24 ảnh" };
+    if (!Array.isArray(family[key])) family[key] = [];
+    if (family[key].length >= 24) return { ok: false, error: limitMessage };
     if (!photoOk({ id: "p", title: trimmed, src })) return { ok: false, error: "Ảnh quá lớn hoặc không đọc được" };
-    const photo = { id: uid("a"), title: trimmed, src };
-    family.photos.push(photo);
+    const photo = { id: uid(key === "tombs" ? "t" : "a"), title: trimmed, src };
+    family[key].push(photo);
     emit();
     return { ok: true, id: photo.id };
   }
 
-  function updatePhoto(id, title) {
-    const photo = (current().photos || []).find((item) => item.id === id);
+  function updateAlbumPhoto(key, id, title) {
+    const photo = (current()[key] || []).find((item) => item.id === id);
     if (!photo) return { ok: false, error: "Không tìm thấy ảnh" };
     const trimmed = String(title || "").trim();
     if (!trimmed) return { ok: false, error: "Nhập tiêu đề cho ảnh" };
@@ -546,11 +552,35 @@ function photoOk(photo) {
     return { ok: true };
   }
 
-  function deletePhoto(id) {
+  function deleteAlbumPhoto(key, id) {
     const family = current();
-    family.photos = (family.photos || []).filter((item) => item.id !== id);
+    family[key] = (family[key] || []).filter((item) => item.id !== id);
     emit();
     return { ok: true };
+  }
+
+  function addPhoto(title, src) {
+    return addAlbumPhoto("photos", title, src, "Mỗi gia phả giữ tối đa 24 ảnh");
+  }
+
+  function updatePhoto(id, title) {
+    return updateAlbumPhoto("photos", id, title);
+  }
+
+  function deletePhoto(id) {
+    return deleteAlbumPhoto("photos", id);
+  }
+
+  function addTomb(title, src) {
+    return addAlbumPhoto("tombs", title, src, "Khu lăng mộ giữ tối đa 24 ảnh");
+  }
+
+  function updateTomb(id, title) {
+    return updateAlbumPhoto("tombs", id, title);
+  }
+
+  function deleteTomb(id) {
+    return deleteAlbumPhoto("tombs", id);
   }
 
   function linkExternal(personId, spec) {
@@ -602,6 +632,9 @@ function photoOk(photo) {
     addPhoto,
     updatePhoto,
     deletePhoto,
+    addTomb,
+    updateTomb,
+    deleteTomb,
     linkExternal,
     reset,
   };
