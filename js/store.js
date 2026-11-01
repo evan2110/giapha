@@ -86,10 +86,27 @@ const Store = (() => {
     return false;
   }
 
+  function photoOk(photo) {
+    return photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000;
+  }
+
   function repairFamily(family) {
     family.name = family.name || "Gia phả mới";
     family.isPublic = !!family.isPublic;
     family.collapsed = Array.isArray(family.collapsed) ? family.collapsed : [];
+    if (typeof family.intro !== "string") {
+      family.intro = typeof defaultIntro === "function" ? defaultIntro(family) : "";
+      extrasChanged = true;
+    }
+    if (family.intro.length > 200000) family.intro = family.intro.slice(0, 200000);
+    if (!Array.isArray(family.photos)) {
+      family.photos = [];
+      extrasChanged = true;
+    } else {
+      const photos = family.photos.filter(photoOk).slice(0, 24);
+      if (photos.length !== family.photos.length) extrasChanged = true;
+      family.photos = photos;
+    }
     family.people = (family.people || []).map((person) => blankPerson(person));
     const ids = new Set(family.people.map((person) => person.id));
     for (const person of family.people) {
@@ -109,6 +126,7 @@ const Store = (() => {
   }
 
   let mode = "local";
+  let extrasChanged = false;
   let authRequired = false;
   let statusHandler = () => {};
   let pushTimer = 0;
@@ -134,6 +152,7 @@ const Store = (() => {
   }
 
   function applyState(next, allowSeed) {
+    extrasChanged = false;
     state = next && typeof next === "object" ? next : null;
     if (!state || !Array.isArray(state.families)) state = allowSeed ? seed() : { version: 1, currentId: null, families: [] };
     if (!state.families.length && allowSeed) state = seed();
@@ -218,7 +237,10 @@ const Store = (() => {
     } else {
       applyState(payload.state, mode !== "view");
       saveLocal();
-      setStatus(mode === "edit" ? "saved" : "view");
+      if (mode === "edit" && extrasChanged) {
+        extrasChanged = false;
+        try { await pushNow(); } catch { setStatus("error"); }
+      } else setStatus(mode === "edit" ? "saved" : "view");
     }
     return { mode, auth: authRequired };
   }
@@ -250,6 +272,8 @@ const Store = (() => {
       isPublic: false,
       collapsed: [],
       people: [],
+      intro: "",
+      photos: [],
     };
   }
 
@@ -264,7 +288,7 @@ const Store = (() => {
   }
 
   function addFamily(name) {
-    const family = { id: uid("f"), name: name.trim(), isPublic: false, collapsed: [], people: [] };
+    const family = { id: uid("f"), name: name.trim(), isPublic: false, collapsed: [], people: [], intro: "", photos: [] };
     state.families.push(family);
     state.currentId = family.id;
     emit();
@@ -464,6 +488,43 @@ const Store = (() => {
     return { ok: true, id: anchor.id };
   }
 
+  function updateIntro(html) {
+    const family = current();
+    family.intro = String(html || "").slice(0, 200000);
+    save();
+  }
+
+  function addPhoto(title, src) {
+    const family = current();
+    const trimmed = String(title || "").trim();
+    if (!trimmed) return { ok: false, error: "Nhập tiêu đề cho ảnh" };
+    if (trimmed.length > 120) return { ok: false, error: "Tiêu đề tối đa 120 ký tự" };
+    if (!family.photos) family.photos = [];
+    if (family.photos.length >= 24) return { ok: false, error: "Mỗi gia phả giữ tối đa 24 ảnh" };
+    if (!photoOk({ id: "p", title: trimmed, src })) return { ok: false, error: "Ảnh quá lớn hoặc không đọc được" };
+    const photo = { id: uid("a"), title: trimmed, src };
+    family.photos.push(photo);
+    emit();
+    return { ok: true, id: photo.id };
+  }
+
+  function updatePhoto(id, title) {
+    const photo = (current().photos || []).find((item) => item.id === id);
+    if (!photo) return { ok: false, error: "Không tìm thấy ảnh" };
+    const trimmed = String(title || "").trim();
+    if (!trimmed) return { ok: false, error: "Nhập tiêu đề cho ảnh" };
+    photo.title = trimmed.slice(0, 120);
+    emit();
+    return { ok: true };
+  }
+
+  function deletePhoto(id) {
+    const family = current();
+    family.photos = (family.photos || []).filter((item) => item.id !== id);
+    emit();
+    return { ok: true };
+  }
+
   function linkExternal(personId, spec) {
     const family = current();
     const person = family.people.find((item) => item.id === personId);
@@ -508,6 +569,10 @@ const Store = (() => {
     addSpouse,
     addAncestors,
     moveCluster,
+    updateIntro,
+    addPhoto,
+    updatePhoto,
+    deletePhoto,
     linkExternal,
     reset,
   };

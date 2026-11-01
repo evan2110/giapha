@@ -23,6 +23,7 @@ const ui = {
   linkMode: false,
   readOnly: false,
   query: "",
+  tab: "tree",
   scale: 1,
   tx: 40,
   ty: 40,
@@ -90,6 +91,7 @@ function persistUi() {
       familyId: Store.current().id,
       selectedId: ui.selectedId,
       panelOpen: ui.panelOpen,
+      tab: ui.tab,
     }));
   } catch { /* bỏ qua */ }
 }
@@ -101,6 +103,7 @@ function bootSelection() {
     Store.state().currentId = saved.familyId;
   }
   const family = Store.current();
+  if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos")) ui.tab = saved.tab;
   if (saved && saved.familyId === family.id && family.people.some((person) => person.id === saved.selectedId)) {
     ui.selectedId = saved.selectedId;
     ui.panelOpen = saved.panelOpen !== false;
@@ -481,6 +484,113 @@ function panTo(id) {
   setTimeout(() => card.classList.remove("pulse"), 800);
 }
 
+function applyTab() {
+  const tab = ui.tab === "intro" || ui.tab === "photos" ? ui.tab : "tree";
+  ui.tab = tab;
+  document.body.dataset.tab = tab;
+  document.getElementById("viewIntro").hidden = tab !== "intro";
+  document.getElementById("viewPhotos").hidden = tab !== "photos";
+  document.querySelector("main.stage").hidden = tab !== "tree";
+  document.querySelectorAll(".tabs [data-tab]").forEach((button) => {
+    const on = button.dataset.tab === tab;
+    button.classList.toggle("is-active", on);
+    button.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const hints = {
+    intro: "Phần giới thiệu của gia phả. Có mật khẩu thì bấm vào bài để sửa.",
+    photos: "Ảnh dòng họ. Mỗi ảnh có một tiêu đề, ví dụ: Gia đình ông bà.",
+    tree: "Bấm vào một người để xem, sửa, thêm con, thêm vợ/chồng. Kéo để di chuyển, cuộn để phóng to / thu nhỏ.",
+  };
+  document.querySelector(".hint").textContent = hints[tab];
+}
+
+function sanitizeIntro(html) {
+  const root = document.createElement("div");
+  root.innerHTML = String(html || "");
+  const allowed = { P: 1, H2: 1, H3: 1, BLOCKQUOTE: 1, UL: 1, OL: 1, LI: 1, STRONG: 1, EM: 1, B: 1, I: 1, BR: 1, DIV: 1 };
+  function clean(node) {
+    [...node.childNodes].forEach((child) => {
+      if (child.nodeType === 3) return;
+      if (child.nodeType !== 1) { child.remove(); return; }
+      clean(child);
+      if (!allowed[child.tagName]) {
+        while (child.firstChild) node.insertBefore(child.firstChild, child);
+        child.remove();
+        return;
+      }
+      [...child.attributes].forEach((attr) => child.removeAttribute(attr.name));
+    });
+  }
+  clean(root);
+  return root.innerHTML;
+}
+
+function renderIntro(family) {
+  const doc = document.getElementById("introDoc");
+  const editable = Store.writable() && !ui.readOnly;
+  doc.contentEditable = editable ? "true" : "false";
+  if (document.activeElement === doc) return;
+  const source = (family.id || "") + "\0" + (family.intro || "");
+  if (doc.dataset.source === source) return;
+  doc.innerHTML = sanitizeIntro(source);
+  doc.dataset.source = source;
+}
+
+function renderPhotos(family) {
+  const photos = family.photos || [];
+  const grid = document.getElementById("photoGrid");
+  document.getElementById("photoEmpty").hidden = photos.length > 0;
+  const sig = photos.map((photo) => photo.id + ":" + photo.title).join("|") + (Store.writable() && !ui.readOnly ? ":edit" : ":view");
+  if (grid.dataset.sig === sig) return;
+  grid.dataset.sig = sig;
+  const editable = Store.writable() && !ui.readOnly;
+  grid.innerHTML = photos.map((photo) =>
+    '<article class="photo-card"><button type="button" class="photo-open" data-photo="' + esc(photo.id) + '"><img src="' + photo.src + '" alt="' + esc(photo.title) + '"></button>' +
+    (editable
+      ? '<input class="photo-title" data-photo-title="' + esc(photo.id) + '" value="' + esc(photo.title) + '" maxlength="120" aria-label="Tiêu đề ảnh">' +
+        '<div class="photo-tools"><button type="button" class="text-btn danger" data-photo-delete="' + esc(photo.id) + '">Xoá ảnh</button></div>'
+      : '<p class="photo-caption">' + esc(photo.title) + "</p>") +
+    "</article>"
+  ).join("");
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const maxEdge = 1400;
+      const scale = Math.min(1, maxEdge / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      let quality = 0.72;
+      let data = canvas.toDataURL("image/jpeg", quality);
+      while (data.length > 380000 && quality > 0.4) {
+        quality -= 0.08;
+        data = canvas.toDataURL("image/jpeg", quality);
+      }
+      if (data.length >= 400000) reject(new Error("Ảnh vẫn quá lớn, hãy chọn ảnh khác"));
+      else resolve(data);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Không đọc được ảnh"));
+    };
+    image.src = url;
+  });
+}
+
+function openPhoto(id) {
+  const photo = (Store.current().photos || []).find((item) => item.id === id);
+  if (!photo) return;
+  document.getElementById("photoViewImg").src = photo.src;
+  document.getElementById("photoViewTitle").textContent = photo.title;
+  document.getElementById("photoView").hidden = false;
+}
+
 function render(opts) {
   const fit = !!(opts && opts.fit) || fitNext;
   fitNext = false;
@@ -491,6 +601,9 @@ function render(opts) {
     renderTree(layout);
     renderPanel(family, layout);
     renderChrome(family, layout);
+    applyTab();
+    renderIntro(family);
+    renderPhotos(family);
     if (fit) fitToView(layout);
     else applyTransform();
   } catch (error) {
@@ -526,6 +639,7 @@ function ancestorKeys(personId) {
 }
 
 function selectPerson(id, opts) {
+  if (opts && opts.pan) ui.tab = "tree";
   const person = Store.person(id);
   if (!person) return;
   if (ui.linkMode && !ui.readOnly) {
@@ -1430,6 +1544,67 @@ async function start() {
   ui.userAdjusted = false;
   render({ fit: true });
 }
+
+document.querySelector(".tabs").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-tab]");
+  if (!button) return;
+  if (button.dataset.tab === "tree" && ui.tab !== "tree") fitNext = true;
+  ui.tab = button.dataset.tab;
+  persistUi();
+  render();
+});
+
+let introTimer = 0;
+document.getElementById("introDoc").addEventListener("input", () => {
+  if (!Store.writable() || ui.readOnly) return;
+  clearTimeout(introTimer);
+  introTimer = setTimeout(() => {
+    const doc = document.getElementById("introDoc");
+    const html = sanitizeIntro(doc.innerHTML);
+    doc.dataset.source = (Store.current().id || "") + "\0" + html;
+    Store.updateIntro(html);
+  }, 500);
+});
+
+document.getElementById("photoForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (guardEdit()) return;
+  const form = event.currentTarget;
+  const file = form.file.files && form.file.files[0];
+  if (!file) return;
+  compressImage(file).then((src) => {
+    const result = Store.addPhoto(form.title.value, src);
+    if (!result.ok) { toast(result.error); return; }
+    form.reset();
+    toast("Đã thêm ảnh");
+  }).catch((error) => toast(error.message || "Không đọc được ảnh"));
+});
+
+document.getElementById("photoGrid").addEventListener("click", (event) => {
+  const open = event.target.closest("[data-photo]");
+  const remove = event.target.closest("[data-photo-delete]");
+  if (remove) {
+    if (guardEdit()) return;
+    Store.deletePhoto(remove.dataset.photoDelete);
+    toast("Đã xoá ảnh");
+    return;
+  }
+  if (open) openPhoto(open.dataset.photo);
+});
+
+document.getElementById("photoGrid").addEventListener("change", (event) => {
+  const input = event.target.closest("[data-photo-title]");
+  if (!input || guardEdit()) return;
+  const result = Store.updatePhoto(input.dataset.photoTitle, input.value);
+  if (!result.ok) toast(result.error);
+});
+
+document.getElementById("photoViewClose").addEventListener("click", () => {
+  document.getElementById("photoView").hidden = true;
+});
+document.getElementById("photoView").addEventListener("click", (event) => {
+  if (event.target.id === "photoView") document.getElementById("photoView").hidden = true;
+});
 
 Store.onStatus(updateSync);
 document.getElementById("syncStatus").addEventListener("click", () => {

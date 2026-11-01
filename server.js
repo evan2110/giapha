@@ -72,7 +72,13 @@ async function writeStored(state) {
 function validState(value) {
   if (!value || typeof value !== "object" || !Array.isArray(value.families)) return false;
   if (value.families.length < 1 || value.families.length > 200) return false;
-  return value.families.every((family) => family && typeof family.id === "string" && family.id.length < 80 && typeof family.name === "string" && Array.isArray(family.people) && family.people.length <= 5000);
+  return value.families.every((family) => {
+    if (!family || typeof family.id !== "string" || family.id.length >= 80 || typeof family.name !== "string" || !Array.isArray(family.people) || family.people.length > 5000) return false;
+    if (family.intro != null && (typeof family.intro !== "string" || family.intro.length > 200000)) return false;
+    if (family.photos == null) return true;
+    if (!Array.isArray(family.photos) || family.photos.length > 24) return false;
+    return family.photos.every((photo) => photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000);
+  });
 }
 
 function publicState(state) {
@@ -97,7 +103,7 @@ function readBody(req) {
     let size = 0;
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > 2_000_000) {
+      if (size > 14_000_000) {
         reject(new Error("too large"));
         req.destroy();
         return;
