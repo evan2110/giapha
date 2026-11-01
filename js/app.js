@@ -518,11 +518,23 @@ function sanitizeIntro(html) {
         child.remove();
         return;
       }
+      const keepCover = child.classList && child.classList.contains("cover");
       [...child.attributes].forEach((attr) => child.removeAttribute(attr.name));
+      if (keepCover) child.className = "cover";
     });
   }
   clean(root);
   return root.innerHTML;
+}
+
+function markCover(doc) {
+  const first = doc.querySelector("p, h2");
+  if (!first || first.textContent.trim() !== "GIA PHẢ") return;
+  let node = first;
+  while (node && !(node.tagName === "H2" && node.textContent.includes("LỜI NÓI"))) {
+    if (node.tagName === "P" || node.tagName === "H2") node.classList.add("cover");
+    node = node.nextElementSibling;
+  }
 }
 
 function renderIntro(family) {
@@ -530,10 +542,27 @@ function renderIntro(family) {
   const editable = Store.writable() && !ui.readOnly;
   doc.contentEditable = editable ? "true" : "false";
   if (document.activeElement === doc) return;
-  const source = (family.id || "") + "\0" + (family.intro || "");
+  const source = family.intro || "";
   if (doc.dataset.source === source) return;
   doc.innerHTML = sanitizeIntro(source);
+  markCover(doc);
   doc.dataset.source = source;
+}
+
+function flushIntro(announce) {
+  const doc = document.getElementById("introDoc");
+  if (!doc || !Store.writable() || ui.readOnly) return;
+  clearTimeout(introTimer);
+  const html = sanitizeIntro(doc.innerHTML);
+  if ((Store.current().intro || "") === html) return;
+  const before = document.createElement("div");
+  const after = document.createElement("div");
+  before.innerHTML = Store.current().intro || "";
+  after.innerHTML = html;
+  const changed = (before.textContent || "").replace(/\s+/g, " ").trim() !== (after.textContent || "").replace(/\s+/g, " ").trim();
+  doc.dataset.source = html;
+  Store.updateIntro(html);
+  if (announce && changed) toast("Đã lưu phần giới thiệu");
 }
 
 function renderPhotos(family) {
@@ -1555,16 +1584,14 @@ document.querySelector(".tabs").addEventListener("click", (event) => {
 });
 
 let introTimer = 0;
-document.getElementById("introDoc").addEventListener("input", () => {
+const introDoc = document.getElementById("introDoc");
+introDoc.addEventListener("input", () => {
   if (!Store.writable() || ui.readOnly) return;
   clearTimeout(introTimer);
-  introTimer = setTimeout(() => {
-    const doc = document.getElementById("introDoc");
-    const html = sanitizeIntro(doc.innerHTML);
-    doc.dataset.source = (Store.current().id || "") + "\0" + html;
-    Store.updateIntro(html);
-  }, 500);
+  introTimer = setTimeout(() => flushIntro(false), 400);
 });
+introDoc.addEventListener("blur", () => flushIntro(true));
+window.addEventListener("pagehide", () => flushIntro(false));
 
 document.getElementById("photoForm").addEventListener("submit", (event) => {
   event.preventDefault();

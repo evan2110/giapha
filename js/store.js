@@ -86,7 +86,19 @@ const Store = (() => {
     return false;
   }
 
-  function photoOk(photo) {
+  function tidyIntro(html, familyId) {
+  let next = String(html || "");
+  const id = String(familyId || "");
+  if (id && next.startsWith(id)) {
+    const rest = next.slice(id.length).replace(/^[\s\u0000]+/, "");
+    if (rest.startsWith("<")) next = rest;
+  }
+  next = next.replace(/^(?:<br\s*\/?>|\s)+/gi, "");
+  next = next.replace(/^<p>((?:\s|&nbsp;|&#160;)+)/i, "<p>");
+  return next;
+}
+
+function photoOk(photo) {
     return photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000;
   }
 
@@ -96,6 +108,11 @@ const Store = (() => {
     family.collapsed = Array.isArray(family.collapsed) ? family.collapsed : [];
     if (typeof family.intro !== "string") {
       family.intro = typeof defaultIntro === "function" ? defaultIntro(family) : "";
+      extrasChanged = true;
+    }
+    const tidied = tidyIntro(family.intro, family.id);
+    if (tidied !== family.intro) {
+      family.intro = tidied;
       extrasChanged = true;
     }
     if (family.intro.length > 200000) family.intro = family.intro.slice(0, 200000);

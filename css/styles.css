@@ -566,15 +566,12 @@ body[data-tab="photos"] .actions { display: none; }
   content: "Chưa có lời giới thiệu. Bấm vào đây để viết.";
   color: var(--muted);
 }
-.intro-doc > p:first-child,
-.intro-doc > h2:first-of-type,
-.intro-doc > p:nth-of-type(2),
-.intro-doc > p:nth-of-type(3) { text-align: center; }
-.intro-doc > p:first-child { letter-spacing: 0.28em; font-weight: 700; color: var(--gold-text); margin-bottom: 0; }
+.intro-doc h2,
+.intro-doc .cover { text-align: center; }
+.intro-doc p.cover:first-of-type { letter-spacing: 0.18em; font-weight: 700; color: var(--gold-text); margin-bottom: 0; }
 .intro-doc h2 {
   font-family: "Playfair Display", Georgia, serif;
   color: var(--green);
-  text-align: center;
   font-size: 32px;
   margin: 8px 0 18px;
 }
