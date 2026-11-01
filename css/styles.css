@@ -561,6 +561,13 @@ body[data-tab="intro"] .actions,
 body[data-tab="photos"] .actions,
 body[data-tab="shrine"] .actions { display: none; }
 
+.credit {
+  margin-top: auto;
+  padding: 8px 16px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
 .sheet {
   flex: 1;
   min-height: 0;
