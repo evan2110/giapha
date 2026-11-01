@@ -174,16 +174,8 @@ h1 {
   min-height: 560px;
   padding: 0 16px 16px;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
-.shrine h2 {
-  margin: 0 0 10px;
-  font-family: "Playfair Display", Georgia, serif;
-  font-style: italic;
-  color: var(--green);
-  font-size: 28px;
-}
+.shrine-form { max-width: 980px; margin: 0 auto 14px; }
 .shrine-form textarea {
   width: 100%;
   border: 1px solid #eadfcd;
@@ -195,8 +187,10 @@ h1 {
 .shrine-actions { display: flex; gap: 8px; margin-top: 8px; }
 .shrine .help { margin: 8px 0 0; }
 .shrine iframe {
+  display: block;
   width: 100%;
-  height: 420px;
+  height: min(72vh, 820px);
+  min-height: 480px;
   border: 0;
   border-radius: 12px;
   background: #efe6d4;
@@ -564,7 +558,8 @@ body.is-readonly .edit-only { display: none !important; }
 }
 .tabs button.is-active { background: var(--green); border-color: var(--green); color: #fff; }
 body[data-tab="intro"] .actions,
-body[data-tab="photos"] .actions { display: none; }
+body[data-tab="photos"] .actions,
+body[data-tab="shrine"] .actions { display: none; }
 
 .sheet {
   flex: 1;

@@ -49,6 +49,7 @@
     <button type="button" data-tab="intro">Giới thiệu</button>
     <button type="button" data-tab="tree">Sơ đồ</button>
     <button type="button" data-tab="photos">Ảnh dòng họ</button>
+    <button type="button" data-tab="shrine">Nhà thờ họ</button>
   </nav>
 
   <div class="actions">
@@ -116,24 +117,23 @@
       </div>
       <aside id="panel" class="panel" hidden></aside>
     </div>
-    <section id="shrine" class="shrine">
-      <h2>Nhà thờ họ</h2>
-      <form id="shrineForm" class="shrine-form edit-only">
-        <textarea name="map" rows="3" maxlength="4000" placeholder="Dán link hoặc mã nhúng từ Google Maps"></textarea>
-        <div class="shrine-actions">
-          <button type="submit" class="btn">Lưu bản đồ</button>
-          <button type="button" class="btn" id="shrineClear">Xoá bản đồ</button>
-        </div>
-        <p class="help">Trong Google Maps bấm Chia sẻ, rồi dán đường liên kết hoặc chọn Nhúng bản đồ và sao chép HTML.</p>
-      </form>
-      <p id="shrineEmpty" class="photo-empty">Chưa có bản đồ nhà thờ họ.</p>
-      <iframe id="shrineFrame" title="Bản đồ nhà thờ họ" loading="lazy" referrerpolicy="no-referrer-when-downgrade" hidden></iframe>
-    </section>
   </main>
 
   <section id="viewIntro" class="sheet" hidden>
     <p id="introNote" class="intro-note edit-only">Bấm vào bài để sửa. Bấm ra ngoài bài thì nội dung được lưu trên máy chủ.</p>
     <article id="introDoc" class="intro-doc"></article>
+  </section>
+  <section id="viewShrine" class="sheet shrine" hidden>
+    <form id="shrineForm" class="shrine-form edit-only">
+      <textarea name="map" rows="3" maxlength="4000" placeholder="Dán link hoặc mã nhúng từ Google Maps"></textarea>
+      <div class="shrine-actions">
+        <button type="submit" class="btn">Lưu bản đồ</button>
+        <button type="button" class="btn" id="shrineClear">Xoá bản đồ</button>
+      </div>
+      <p class="help">Trong Google Maps bấm Chia sẻ, rồi dán đường liên kết hoặc chọn Nhúng bản đồ và sao chép HTML.</p>
+    </form>
+    <p id="shrineEmpty" class="photo-empty">Chưa có bản đồ nhà thờ họ.</p>
+    <iframe id="shrineFrame" title="Bản đồ nhà thờ họ" loading="lazy" referrerpolicy="no-referrer-when-downgrade" hidden></iframe>
   </section>
   <section id="viewPhotos" class="sheet" hidden>
     <form id="photoForm" class="photo-form edit-only">

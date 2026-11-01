@@ -103,7 +103,7 @@ function bootSelection() {
     Store.state().currentId = saved.familyId;
   }
   const family = Store.current();
-  if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos")) ui.tab = saved.tab;
+  if (saved && (saved.tab === "intro" || saved.tab === "tree" || saved.tab === "photos" || saved.tab === "shrine")) ui.tab = saved.tab;
   if (saved && saved.familyId === family.id && family.people.some((person) => person.id === saved.selectedId)) {
     ui.selectedId = saved.selectedId;
     ui.panelOpen = saved.panelOpen !== false;
@@ -529,11 +529,13 @@ function renderShrine(family) {
 }
 
 function applyTab() {
-  const tab = ui.tab === "intro" || ui.tab === "photos" ? ui.tab : "tree";
+  const known = ui.tab === "intro" || ui.tab === "photos" || ui.tab === "shrine";
+  const tab = known ? ui.tab : "tree";
   ui.tab = tab;
   document.body.dataset.tab = tab;
   document.getElementById("viewIntro").hidden = tab !== "intro";
   document.getElementById("viewPhotos").hidden = tab !== "photos";
+  document.getElementById("viewShrine").hidden = tab !== "shrine";
   document.querySelector("main.stage").hidden = tab !== "tree";
   document.querySelectorAll(".tabs [data-tab]").forEach((button) => {
     const on = button.dataset.tab === tab;
@@ -543,6 +545,7 @@ function applyTab() {
   const hints = {
     intro: "Phần giới thiệu của gia phả. Có mật khẩu thì bấm vào bài để sửa.",
     photos: "Ảnh dòng họ. Mỗi ảnh có một tiêu đề, ví dụ: Gia đình ông bà.",
+    shrine: "Bản đồ nhà thờ họ. Có mật khẩu thì dán link Google Maps để thêm hoặc xoá.",
     tree: "Bấm vào một người để xem, sửa, thêm con, thêm vợ/chồng. Kéo để di chuyển, cuộn để phóng to / thu nhỏ.",
   };
   document.querySelector(".hint").textContent = hints[tab];
@@ -1651,7 +1654,6 @@ document.getElementById("shrineForm").addEventListener("submit", (event) => {
     Store.setShrineMap(embed);
     form.reset();
     toast("Đã lưu bản đồ nhà thờ họ");
-    document.getElementById("shrine").scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
   let embed = googleMapEmbed(raw);
   if (embed !== "short") { finish(embed); return; }
