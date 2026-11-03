@@ -331,6 +331,21 @@ function personButton(person) {
   return '<button type="button" data-action="select" data-id="' + esc(person.id) + '">' + esc(person.name + suffix) + "</button>";
 }
 
+function bioParagraphs(text) {
+  return String(text || "").split(/\n{2,}/).map((part) => part.trim()).filter(Boolean)
+    .map((part) => "<p>" + esc(part).replace(/\n/g, "<br>") + "</p>").join("");
+}
+
+function bioSection(person) {
+  const bio = String(person.bio || "").trim();
+  return '<section class="bio"><div class="bio-head"><h3>Tiểu sử</h3>' +
+    '<button type="button" class="bio-link edit-only" data-action="edit-bio" data-id="' + esc(person.id) + '">' + (bio ? "Sửa" : "Viết") + "</button></div>" +
+    (bio
+      ? '<div class="bio-text">' + bioParagraphs(bio) + '</div><button type="button" class="bio-more" data-action="read-bio" data-id="' + esc(person.id) + '" hidden>Đọc tiếp</button>'
+      : '<p class="bio-empty">Chưa có tiểu sử.</p>') +
+    "</section>";
+}
+
 function renderPanel(family, layout) {
   const panel = document.getElementById("panel");
   const person = ui.selectedId ? family.people.find((item) => item.id === ui.selectedId) : null;
@@ -362,6 +377,7 @@ function renderPanel(family, layout) {
     "<dt>Số con</dt><dd><span class=\"count\">" + children.length + "</span>" + children.map(personButton).join("") + "</dd>" +
     "</dl>" +
     (person.note ? "<hr><p class=\"note\">" + esc(person.note) + "</p>" : "") +
+    bioSection(person) +
     '<hr><div class="panel-actions edit-only">' +
     '<button type="button" class="panel-btn" data-action="edit" data-id="' + esc(person.id) + '">' + ICON.pencil + "Xem / sửa thông tin</button>" +
     '<button type="button" class="panel-btn" data-action="add-spouse" data-id="' + esc(person.id) + '">' + ICON.spouse + "Thêm vợ/chồng</button>" +
@@ -369,6 +385,9 @@ function renderPanel(family, layout) {
     (person.external ? "" : '<button type="button" class="panel-btn" data-action="move-cluster" data-id="' + esc(person.id) + '">' + ICON.move + "Chuyển cụm sang nhánh khác</button>") +
     '<button type="button" class="panel-btn danger" data-action="delete" data-id="' + esc(person.id) + '">' + ICON.trash + "Xoá khỏi gia phả</button>" +
     "</div>";
+  const bioText = panel.querySelector(".bio-text");
+  const more = panel.querySelector(".bio-more");
+  if (bioText && more && bioText.scrollHeight > bioText.clientHeight + 1) more.hidden = false;
 }
 
 function renderChrome(family, layout) {
@@ -764,7 +783,7 @@ function openModal(opts) {
   const root = document.getElementById("modalRoot");
   root.hidden = false;
   root.innerHTML =
-    '<div class="modal-back" id="modalBack"><div class="modal' + (opts.wide ? " wide" : "") + '" role="dialog" aria-modal="true" aria-label="' + esc(opts.title) + '">' +
+    '<div class="modal-back" id="modalBack"><div class="modal' + (opts.wide ? " wide" : "") + (opts.sheet ? " sheet" : "") + '" role="dialog" aria-modal="true" aria-label="' + esc(opts.title) + '">' +
     '<header class="modal-head"><h2>' + esc(opts.title) + '</h2><button type="button" class="icon-x" data-dismiss aria-label="Đóng">×</button></header>' +
     '<form class="modal-form" id="modalForm"><div class="modal-body">' + opts.html + "</div>" +
     (opts.hideFooter ? "" : '<footer class="modal-foot"><button type="button" data-dismiss>Huỷ</button><button type="submit" class="' + (opts.danger ? "danger" : "primary") + '">' + esc(opts.submitLabel || "Lưu") + "</button></footer>") +
@@ -780,8 +799,59 @@ function openModal(opts) {
     });
   });
   if (opts.onMount) opts.onMount(root, close);
-  const focus = root.querySelector("input, select, textarea, button");
+  const focus = root.querySelector(".modal-body textarea, .modal-body input, .modal-body select") || root.querySelector("button");
   if (focus) focus.focus();
+}
+
+function openBioEditor(id) {
+  if (guardEdit()) return;
+  const person = Store.person(id);
+  if (!person) return;
+  openModal({
+    title: "Tiểu sử",
+    sheet: true,
+    html:
+      '<p class="bio-kicker">' + esc(person.name) + "</p>" +
+      '<label>Nội dung<textarea name="bio" rows="14" maxlength="8000" placeholder="Quê quán, cuộc đời, công việc, những điều con cháu cần nhớ. Xuống dòng hai lần để tách đoạn.">' + esc(person.bio || "") + "</textarea></label>" +
+      '<p class="help" id="bioCount"></p>',
+    submitLabel: "Lưu tiểu sử",
+    onMount(root) {
+      const field = root.querySelector("textarea");
+      const count = root.querySelector("#bioCount");
+      const paint = () => { count.textContent = field.value.length + " / 8000 ký tự"; };
+      field.addEventListener("input", paint);
+      paint();
+    },
+    onSubmit(form) {
+      const result = Store.setBio(id, form.get("bio"));
+      if (!result.ok) { toast(result.error); return false; }
+      toast("Đã lưu tiểu sử");
+      return true;
+    },
+  });
+}
+
+function openBioReader(id) {
+  const person = Store.person(id);
+  if (!person || !String(person.bio || "").trim()) return;
+  const life = yearsText(person);
+  openModal({
+    title: person.name,
+    sheet: true,
+    hideFooter: true,
+    html:
+      '<p class="bio-kicker">' + esc(genderLabel(person.gender) + (life ? " · " + life : "")) + "</p>" +
+      '<article class="bio-read">' + bioParagraphs(person.bio) + "</article>" +
+      '<button type="button" class="bio-edit-btn edit-only" data-bio-edit>Sửa tiểu sử</button>',
+    onMount(root, close) {
+      const button = root.querySelector("[data-bio-edit]");
+      if (!button) return;
+      button.addEventListener("click", () => {
+        close();
+        openBioEditor(id);
+      });
+    },
+  });
 }
 
 function yearFields(prefix, person) {
@@ -1455,6 +1525,8 @@ document.body.addEventListener("click", (event) => {
     else if (action === "online") enterOnline();
     else if (action === "exit-online") exitReadOnly();
     else if (action === "edit") openEdit(id);
+    else if (action === "edit-bio") openBioEditor(id);
+    else if (action === "read-bio") openBioReader(id);
     else if (action === "add-spouse") openAddSpouse(id);
     else if (action === "add-child") openAddChild(id);
     else if (action === "move-cluster") openMoveCluster(id);

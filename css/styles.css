@@ -413,6 +413,61 @@ h1 {
   font-size: 13px;
   line-height: 1.45;
 }
+.bio {
+  margin-top: 14px;
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffaf3 0%, #f8f1e6 100%);
+  border: 1px solid #f0e2cc;
+}
+.bio-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bio h3 {
+  margin: 0;
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 17px;
+  color: #6d4b28;
+}
+.bio-link, .bio-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 650;
+}
+.bio-link:hover, .bio-more:hover { text-decoration: underline; }
+.bio-text {
+  margin-top: 8px;
+  color: #3f3832;
+  font-size: 13.5px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+.bio-text p, .bio-read p { margin: 0; }
+.bio-text p + p, .bio-read p + p { margin-top: 0.7em; }
+.bio-empty { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.bio-more { margin-top: 8px; color: var(--gold-text); }
+.modal.sheet { width: min(680px, 100%); background: #fffdf8; }
+.modal.sheet .modal-body { padding: 6px 22px 22px; }
+.modal.sheet textarea { min-height: 280px; line-height: 1.65; font-size: 15px; }
+.bio-kicker { margin: 0; color: #8a7b68; font-size: 13px; font-weight: 600; }
+.bio-read { color: #3c342c; font-size: 16.5px; line-height: 1.75; }
+.bio-edit-btn {
+  align-self: flex-start;
+  height: 36px;
+  margin-top: 4px;
+  border-radius: 8px;
+  padding: 0 14px;
+  border: 1px solid #e3cb96;
+  background: #fff;
+  color: var(--gold-text);
+  font-weight: 650;
+}
 .panel-actions { display: flex; flex-direction: column; gap: 8px; }
 .panel-btn {
   height: 38px;

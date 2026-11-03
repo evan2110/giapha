@@ -22,6 +22,7 @@ const Store = (() => {
       spouseIds: Array.isArray(partial.spouseIds) ? partial.spouseIds.slice() : [],
       order: partial.order ?? null,
       note: partial.note || "",
+      bio: typeof partial.bio === "string" ? partial.bio.replace(/\r\n/g, "\n").trim().slice(0, 8000) : "",
       external: !!partial.external,
     };
   }
@@ -370,6 +371,16 @@ function photoOk(photo) {
     return { ok: true };
   }
 
+  function setBio(id, bio) {
+    const target = current().people.find((item) => item.id === id);
+    if (!target) return { ok: false, error: "Không tìm thấy người này" };
+    const text = String(bio || "").replace(/\r\n/g, "\n").trim();
+    if (text.length > 8000) return { ok: false, error: "Tiểu sử tối đa 8000 ký tự" };
+    target.bio = text;
+    emit();
+    return { ok: true };
+  }
+
   function deletePerson(id) {
     const family = current();
     family.people = family.people.filter((item) => item.id !== id);
@@ -622,6 +633,7 @@ function photoOk(photo) {
     deleteFamily,
     updateFamily,
     updatePerson,
+    setBio,
     deletePerson,
     addChild,
     addSpouse,

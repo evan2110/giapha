@@ -76,6 +76,10 @@ function photosOk(list) {
   return list.every((photo) => photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000);
 }
 
+function biosOk(people) {
+  return people.every((person) => !person || person.bio == null || (typeof person.bio === "string" && person.bio.length <= 8000));
+}
+
 function validState(value) {
   if (!value || typeof value !== "object" || !Array.isArray(value.families)) return false;
   if (value.families.length < 1 || value.families.length > 200) return false;
@@ -83,7 +87,7 @@ function validState(value) {
     if (!family || typeof family.id !== "string" || family.id.length >= 80 || typeof family.name !== "string" || !Array.isArray(family.people) || family.people.length > 5000) return false;
     if (family.intro != null && (typeof family.intro !== "string" || family.intro.length > 200000)) return false;
     if (family.shrineMap != null && family.shrineMap !== "" && !safeMapEmbed(family.shrineMap)) return false;
-    return photosOk(family.photos) && photosOk(family.tombs);
+    return photosOk(family.photos) && photosOk(family.tombs) && biosOk(family.people);
   });
 }
 
