@@ -293,7 +293,10 @@ h1 {
   align-items: center;
   justify-content: center;
 }
-.card .years { color: #5d6c78; font-size: 12px; min-height: 1.2em; }
+.card .years { color: #5d6c78; font-size: 12px; min-height: 1.2em; max-width: 108px; line-height: 1.15; }
+.card .years.years-long { font-size: 11px; letter-spacing: -0.02em; }
+.date-row { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 8px; }
+.date-row input { min-width: 0; width: 100%; }
 
 .empty {
   position: absolute;

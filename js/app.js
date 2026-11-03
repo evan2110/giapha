@@ -49,11 +49,20 @@ function norm(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
 }
 
+function birthText(person) {
+  if (!person || !person.birth) return "";
+  if (person.birthDay && person.birthMonth) return person.birthDay + "/" + person.birthMonth + "/" + person.birth;
+  if (person.birthMonth) return person.birthMonth + "/" + person.birth;
+  return String(person.birth);
+}
+
 function yearsText(person) {
   if (!person) return "";
-  if (person.birth && person.death) return person.birth + " – " + person.death;
-  if (person.birth) return String(person.birth);
-  if (person.death) return "– " + person.death;
+  const born = birthText(person);
+  const died = person.death ? String(person.death) : "";
+  if (born && died) return born + " – " + died;
+  if (born) return born;
+  if (died) return "– " + died;
   return "";
 }
 
@@ -62,6 +71,15 @@ function parseYear(value) {
   if (!text) return { value: null };
   if (!/^\d{3,4}$/.test(text)) return { error: true };
   return { value: Number(text) };
+}
+
+function parsePart(value, max) {
+  const text = String(value ?? "").trim();
+  if (!text) return { value: null };
+  if (!/^\d{1,2}$/.test(text)) return { error: true };
+  const number = Number(text);
+  if (number < 1 || number > max) return { error: true };
+  return { value: number };
 }
 
 function clamp(value, min, max) {
@@ -311,7 +329,7 @@ function renderTree(layout) {
       '<span class="gen">' + unit.generation + "</span>" +
       '<div class="avatar">' + SILHOUETTE[person.gender] + "</div>" +
       '<div class="name">' + esc(person.name) + "</div>" +
-      '<div class="years">' + esc(yearsText(person)) + "</div>" +
+      '<div class="years' + (yearsText(person).length > 11 ? " years-long" : "") + '">' + esc(yearsText(person)) + "</div>" +
       "</article>";
   }).join("")).join("");
   const links = connectorModel(layout);
@@ -360,7 +378,6 @@ function renderPanel(family, layout) {
   const father = family.people.find((item) => item.id === person.fatherId) || family.people.find((item) => item.id === person.externalFatherId);
   const mother = family.people.find((item) => item.id === person.motherId) || family.people.find((item) => item.id === person.externalMotherId);
   const initial = Array.from(person.name.trim())[0] || "?";
-  const life = yearsText(person) || "—";
   const genLabel = person.external ? "Ngoài tộc" : "Đời " + (generation || "—");
   panel.hidden = false;
   panel.innerHTML =
@@ -370,7 +387,8 @@ function renderPanel(family, layout) {
     '<p class="meta">' + genderLabel(person.gender) + " · " + genLabel + "</p>" +
     '<span class="pill ' + person.gender + '">' + genderLabel(person.gender) + "</span></div></div><hr>" +
     '<dl class="kv">' +
-    "<dt>Sinh – mất</dt><dd>" + esc(life) + "</dd>" +
+    "<dt>Sinh</dt><dd>" + esc(birthText(person) || "—") + "</dd>" +
+    "<dt>Mất</dt><dd>" + esc(person.death ? String(person.death) : "—") + "</dd>" +
     "<dt>Thân phụ</dt><dd>" + personButton(father) + "</dd>" +
     "<dt>Thân mẫu</dt><dd>" + personButton(mother) + "</dd>" +
     "<dt>Vợ / chồng</dt><dd>" + (spouses.length ? spouses.map(personButton).join("") : "—") + "</dd>" +
@@ -857,16 +875,27 @@ function openBioReader(id) {
 function yearFields(prefix, person) {
   const birth = person && person.birth ? person.birth : "";
   const death = person && person.death ? person.death : "";
-  return '<div class="split"><label>Năm sinh<input name="' + prefix + 'Birth" inputmode="numeric" value="' + birth + '" placeholder="1958"></label>' +
-    '<label>Năm mất<input name="' + prefix + 'Death" inputmode="numeric" value="' + death + '" placeholder="Để trống nếu còn sống"></label></div>';
+  const day = person && person.birthDay ? person.birthDay : "";
+  const month = person && person.birthMonth ? person.birthMonth : "";
+  return '<div class="date-row">' +
+    '<label>Ngày<input name="' + prefix + 'BirthDay" inputmode="numeric" maxlength="2" value="' + day + '" placeholder="15"></label>' +
+    '<label>Tháng<input name="' + prefix + 'BirthMonth" inputmode="numeric" maxlength="2" value="' + month + '" placeholder="3"></label>' +
+    '<label>Năm sinh<input name="' + prefix + 'Birth" inputmode="numeric" maxlength="4" value="' + birth + '" placeholder="1958"></label></div>' +
+    '<label>Năm mất<input name="' + prefix + 'Death" inputmode="numeric" maxlength="4" value="' + death + '" placeholder="Để trống nếu còn sống"></label>';
 }
 
 function readYears(form, prefix) {
   const birth = parseYear(form.get(prefix + "Birth"));
   const death = parseYear(form.get(prefix + "Death"));
+  const day = parsePart(form.get(prefix + "BirthDay"), 31);
+  const month = parsePart(form.get(prefix + "BirthMonth"), 12);
   if (birth.error || death.error) return { error: "Năm sinh và năm mất phải là số năm" };
+  if (day.error) return { error: "Ngày sinh phải từ 1 đến 31" };
+  if (month.error) return { error: "Tháng sinh phải từ 1 đến 12" };
+  if (day.value && !month.value) return { error: "Nhập tháng sinh khi đã có ngày" };
+  if ((day.value || month.value) && !birth.value) return { error: "Nhập năm sinh khi đã có ngày hoặc tháng" };
   if (birth.value && death.value && death.value < birth.value) return { error: "Năm mất không thể trước năm sinh" };
-  return { birth: birth.value, death: death.value };
+  return { birth: birth.value, death: death.value, birthDay: day.value, birthMonth: month.value };
 }
 
 function parentOptions(person, field) {
@@ -908,6 +937,8 @@ function openEdit(id) {
         name: form.get("name"),
         gender: form.get("gender"),
         birth: years.birth,
+        birthMonth: years.birthMonth,
+        birthDay: years.birthDay,
         death: years.death,
         fatherId: form.get("fatherId"),
         motherId: form.get("motherId"),
@@ -943,6 +974,8 @@ function openAddChild(id) {
         name: form.get("name"),
         gender: form.get("gender"),
         birth: years.birth,
+        birthMonth: years.birthMonth,
+        birthDay: years.birthDay,
         death: years.death,
       });
       if (!result.ok) { toast(result.error); return false; }
@@ -972,6 +1005,8 @@ function openAddSpouse(id) {
         name: form.get("name"),
         gender: form.get("gender"),
         birth: years.birth,
+        birthMonth: years.birthMonth,
+        birthDay: years.birthDay,
         death: years.death,
       });
       if (!result.ok) { toast(result.error); return false; }
@@ -1081,8 +1116,9 @@ function topOfLine(start) {
 }
 
 function ancestorForm(label) {
-  return '<div class="stack"><strong>' + label + '</strong><label>Họ và tên<input name="' + (label === "Thân phụ" ? "fatherName" : "motherName") + '" placeholder="' + label + '"></label>' +
-    '<div class="split"><label>Năm sinh<input name="' + (label === "Thân phụ" ? "fatherBirth" : "motherBirth") + '" inputmode="numeric"></label><label>Năm mất<input name="' + (label === "Thân phụ" ? "fatherDeath" : "motherDeath") + '" inputmode="numeric"></label></div></div>';
+  const prefix = label === "Thân phụ" ? "father" : "mother";
+  return '<div class="stack"><strong>' + label + '</strong><label>Họ và tên<input name="' + prefix + 'Name" placeholder="' + label + '"></label>' +
+    yearFields(prefix, null) + "</div>";
 }
 
 function openAddAncestor() {
@@ -1106,10 +1142,14 @@ function openAddAncestor() {
       const result = Store.addAncestors(target ? target.id : null, {
         name: form.get("fatherName"),
         birth: fatherYears.birth,
+        birthMonth: fatherYears.birthMonth,
+        birthDay: fatherYears.birthDay,
         death: fatherYears.death,
       }, {
         name: form.get("motherName"),
         birth: motherYears.birth,
+        birthMonth: motherYears.birthMonth,
+        birthDay: motherYears.birthDay,
         death: motherYears.death,
       });
       if (!result.ok) { toast(result.error); return false; }
@@ -1450,8 +1490,9 @@ async function exportImage() {
       ctx.textBaseline = "top";
       wrapText(ctx, person.name, CARD_W - 16).forEach((line, lineIndex) => ctx.fillText(line, x + CARD_W / 2, y + 80 + lineIndex * 16));
       ctx.fillStyle = "#5d6c78";
-      ctx.font = '500 12px "Be Vietnam Pro", "Segoe UI", sans-serif';
-      ctx.fillText(yearsText(person), x + CARD_W / 2, y + 128);
+      const life = yearsText(person);
+      ctx.font = (life.length > 11 ? "500 10px" : "500 12px") + ' "Be Vietnam Pro", "Segoe UI", sans-serif';
+      ctx.fillText(life, x + CARD_W / 2, y + 128);
     });
   });
   ctx.restore();

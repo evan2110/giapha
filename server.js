@@ -76,6 +76,19 @@ function photosOk(list) {
   return list.every((photo) => photo && typeof photo.id === "string" && photo.id.length < 40 && typeof photo.title === "string" && photo.title.length <= 120 && typeof photo.src === "string" && photo.src.startsWith("data:image/jpeg;base64,") && photo.src.length < 400000);
 }
 
+function datesOk(people) {
+  return people.every((person) => {
+    if (!person) return true;
+    const day = person.birthDay;
+    const month = person.birthMonth;
+    if (day != null && (!Number.isInteger(day) || day < 1 || day > 31)) return false;
+    if (month != null && (!Number.isInteger(month) || month < 1 || month > 12)) return false;
+    if (day != null && month == null) return false;
+    if ((day != null || month != null) && person.birth == null) return false;
+    return true;
+  });
+}
+
 function biosOk(people) {
   return people.every((person) => !person || person.bio == null || (typeof person.bio === "string" && person.bio.length <= 8000));
 }
@@ -87,7 +100,7 @@ function validState(value) {
     if (!family || typeof family.id !== "string" || family.id.length >= 80 || typeof family.name !== "string" || !Array.isArray(family.people) || family.people.length > 5000) return false;
     if (family.intro != null && (typeof family.intro !== "string" || family.intro.length > 200000)) return false;
     if (family.shrineMap != null && family.shrineMap !== "" && !safeMapEmbed(family.shrineMap)) return false;
-    return photosOk(family.photos) && photosOk(family.tombs) && biosOk(family.people);
+    return photosOk(family.photos) && photosOk(family.tombs) && biosOk(family.people) && datesOk(family.people);
   });
 }
 

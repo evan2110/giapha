@@ -7,13 +7,21 @@ const Store = (() => {
     return prefix + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
   }
 
+  function datePart(value, max) {
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < 1 || number > max) return null;
+    return number;
+  }
+
   function blankPerson(partial) {
     const gender = partial.gender === "female" ? "female" : "male";
-    return {
+    const person = {
       id: partial.id || uid("p"),
       name: String(partial.name || "").trim(),
       gender,
       birth: partial.birth ?? null,
+      birthMonth: datePart(partial.birthMonth, 12),
+      birthDay: datePart(partial.birthDay, 31),
       death: partial.death ?? null,
       fatherId: partial.fatherId || null,
       motherId: partial.motherId || null,
@@ -25,6 +33,9 @@ const Store = (() => {
       bio: typeof partial.bio === "string" ? partial.bio.replace(/\r\n/g, "\n").trim().slice(0, 8000) : "",
       external: !!partial.external,
     };
+    if (!person.birth || !person.birthMonth) person.birthDay = null;
+    if (!person.birth) person.birthMonth = null;
+    return person;
   }
 
   function seed() {
@@ -363,6 +374,12 @@ function photoOk(photo) {
     target.name = name;
     target.gender = patch.gender === "female" ? "female" : "male";
     target.birth = patch.birth ?? null;
+    target.birthMonth = datePart(patch.birthMonth, 12);
+    target.birthDay = target.birthMonth ? datePart(patch.birthDay, 31) : null;
+    if ((target.birthDay || target.birthMonth) && !target.birth) {
+      target.birthDay = null;
+      target.birthMonth = null;
+    }
     target.death = patch.death ?? null;
     target.fatherId = fatherId;
     target.motherId = motherId;
